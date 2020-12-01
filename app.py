@@ -1,16 +1,36 @@
-from flask import Flask, render_template,request
+from flask import Flask, render_template,request, url_for, redirect , session
 import instagram
 from redis import Redis
-import rq
+from flask_sqlalchemy import SQLAlchemy
+
+# import rq
 
 app = Flask(__name__)
 app.secret_key = 'iknowyoucanseethis'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///test.db'
+db = SQLAlchemy(app)
+
+class User(db.Model):
+    """ Create user table"""
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True)
+    password = db.Column(db.String(80))
+
+    def __init__(self, username, password):
+        self.username = username
+        self.password = password
 
 @app.route('/')
 @app.route('/home')
 @app.route('/index')
-def home():
-   return render_template("index.html")
+
+
+
+def home(methods=['GET', 'POST']):
+    if not session.get('logged_in'):
+        return render_template('login.html')
+    else:
+        return render_template("index.html")
 
 @app.route('/details', methods=['GET', 'POST'])
 def details():
@@ -51,6 +71,24 @@ def details():
         external_url='None'
     return render_template("display.html",dp_url=dp_url,username=username,fullname=fullname,private_profile=private_profile,is_verified=is_verified,total_posts=total_posts,followers=followers,following=following,bio=bio,external_url=external_url,hd_dp_url=hd_dp_url)
 
+@app.route('/register/', methods=['GET', 'POST'])
+def register():
+    """Register Form"""
+    if request.method == 'POST':
+        new_user = User(
+            username=request.form['username'],
+            password=request.form['password'])
+        db.session.add(new_user)
+        db.session.commit()
+        return render_template('login.html')
+    return render_template('register.html')
+
+@app.route("/logout")
+def logout():
+    """Logout Form"""
+    session['logged_in'] = False
+    return redirect(url_for('home'))
+
 @app.route('/post', methods=['GET', 'POST'])
 def post():
     try:
@@ -66,4 +104,5 @@ def post():
 
 if __name__ == '__main__':
     app.debug = True
+    db.create_all()
     app.run(host='0.0.0.0',port=5000,use_reloader=True)
