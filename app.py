@@ -2,6 +2,7 @@ from flask import Flask, render_template,request, url_for, redirect , session
 import instagram
 from redis import Redis
 from flask_sqlalchemy import SQLAlchemy
+import os
 
 # import rq
 
@@ -23,11 +24,9 @@ class User(db.Model):
 @app.route('/')
 @app.route('/home')
 @app.route('/index')
-
-
-
 def home(methods=['GET', 'POST']):
     if not session.get('logged_in'):
+        print("hui")
         return render_template('login.html')
     else:
         return render_template("index.html")
@@ -71,9 +70,26 @@ def details():
         external_url='None'
     return render_template("display.html",dp_url=dp_url,username=username,fullname=fullname,private_profile=private_profile,is_verified=is_verified,total_posts=total_posts,followers=followers,following=following,bio=bio,external_url=external_url,hd_dp_url=hd_dp_url)
 
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login Form"""
+    if request.method == 'GET':
+        return render_template('login.html')
+    else:
+        name = request.form['username']
+        passw = request.form['password']
+        try:
+            data = User.query.filter_by(username=name, password=passw).first()
+            if data is not None:
+                session['logged_in'] = True
+                return redirect(url_for('home'))
+            else:
+                return 'Dont Login'
+        except:
+            return "Dont Login"
+
 @app.route('/register/', methods=['GET', 'POST'])
 def register():
-    """Register Form"""
     if request.method == 'POST':
         new_user = User(
             username=request.form['username'],
@@ -97,10 +113,17 @@ def post():
         else:
             result = request.form
             post_link = (result['postlink'])
-            full_name,followers,followees,is_verified,is_private,bio,external_url, owner_username, url, caption, caption_hashtags, caption_mentions, is_video, media_url, likes, comments = instagram.get_media_details(post_link)
-            return render_template('post.html',full_name=full_name,followers=followers,followees=followees,is_verified=is_verified,is_private=is_private,bio=bio,external_url=external_url,owner_username=owner_username,url=url,caption=caption,caption_hashtags=caption_hashtags,caption_mentions=caption_mentions,is_video=is_video,comments=comments,likes=likes,media_url=media_url)
+            name_date = post_link.split(":")
+            f_data = name_date[1].split('-')[1]
+            s_data = name_date[1].split('-')[0]
+            os.system(f"Instaloader  --post-filter=\"date_utc <= datetime({f_data}) and date_utc >= datetime({s_data})\" --dirname-pattern static/{name_date[0]} --no-metadata-json --no-videos {name_date[0]}")
+            imgs = os.listdir("static/"+name_date[0]+"/")
+            for i in imgs:
+                if "_id" in i:
+                    imgs.remove(i)
+            return render_template('post.html',imgs=imgs,namy=name_date[0])
     except :
-        return "Something went wrong. Is your URL Correct? Make sure the link isn't Private."
+        return render_template('post.html')
 
 if __name__ == '__main__':
     app.debug = True
